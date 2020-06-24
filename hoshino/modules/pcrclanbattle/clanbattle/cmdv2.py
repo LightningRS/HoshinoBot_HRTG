@@ -580,6 +580,12 @@ async def add_sos(bot:NoneBot, ctx:Context_T, args:ParseResult):
     await bot.send(ctx, '\n'.join(msg), at_sender=True)
 
 
+@cb_cmd(('下树'), ArgParser('!下树'))
+async def del_sos(bot:NoneBot, ctx:Context_T, args:ParseResult):
+    msg = f"\n你下尼🐴呢？🌳不是玩具！给👴🏻老实挂着"
+    await bot.send(ctx, msg, at_sender=True)
+
+
 @cb_cmd(('查树', ), ArgParser('!查树'))
 async def list_sos(bot:NoneBot, ctx:Context_T, args:ParseResult):
     bm = BattleMaster(ctx['group_id'])

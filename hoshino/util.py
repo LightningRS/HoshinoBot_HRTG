@@ -47,22 +47,34 @@ async def delete_msg(ctx):
 
 
 async def silence(ctx, ban_time, ignore_super_user=False):
-    try:
-        self_id = ctx['self_id']
-        group_id = ctx['group_id']
-        user_id = ctx['user_id']
-        bot = get_bot()
-        if ignore_super_user or user_id not in bot.config.SUPERUSERS:
-            await bot.set_group_ban(self_id=self_id, group_id=group_id, user_id=user_id, duration=ban_time)
-    except ActionFailed as e:
-        logger.error(f'禁言失败 retcode={e.retcode}')
-    except Exception as e:
-        logger.exception(e)
+    logger.info("Silence disabled")
+    return
+    # try:
+    #     self_id = ctx['self_id']
+    #     group_id = ctx['group_id']
+    #     user_id = ctx['user_id']
+    #     bot = get_bot()
+    #     if ignore_super_user or user_id not in bot.config.SUPERUSERS:
+    #         await bot.set_group_ban(self_id=self_id, group_id=group_id, user_id=user_id, duration=ban_time)
+    # except ActionFailed as e:
+    #     logger.error(f'禁言失败 retcode={e.retcode}')
+    # except Exception as e:
+    #     logger.exception(e)
 
 
-def pic2b64(pic:Image) -> str:
+def pic2b64_nocompress(pic:Image) -> str:
     buf = BytesIO()
     pic.save(buf, format='PNG')
+    base64_str = base64.b64encode(buf.getvalue()).decode()   #, encoding='utf8')
+    return 'base64://' + base64_str
+
+def pic2b64(pic:Image) -> str:
+    # 默认发送图片时，采用 Image.ANTIALIAS 平滑方法，起一定压缩效果
+    # 配合 JPEG 格式 85% 质量，可进一步压缩图片
+    buf = BytesIO()
+    des = pic.convert('RGB')
+    des.resize(des.size, Image.ANTIALIAS)
+    des.save(buf, format='JPEG', quality=85)
     base64_str = base64.b64encode(buf.getvalue()).decode()   #, encoding='utf8')
     return 'base64://' + base64_str
 
