@@ -2,8 +2,8 @@ import itertools
 from hoshino import util, R, CommandSession
 from . import sv
 
-p1 = R.img('priconne/quick/r16-3-tw-0.png').cqcode
-p2 = R.img('priconne/quick/r16-3-tw-1.png').cqcode
+p1 = R.img('priconne/quick/r16-4-tw-0.png').cqcode
+p2 = R.img('priconne/quick/r16-4-tw-1.png').cqcode
 p4 = R.img('priconne/quick/r17-3-jp-1.png').cqcode
 p5 = R.img('priconne/quick/r17-3-jp-2.png').cqcode
 p6 = R.img('priconne/quick/r17-3-jp-3.png').cqcode
@@ -32,7 +32,7 @@ async def rank_sheet(bot, ctx, match):
         await bot.send(ctx, '\n'.join(msg), at_sender=True)
         await util.silence(ctx, 60)
     elif is_tw:
-        msg.append(f'※不定期搬运自漪夢奈特\n※油管有介绍视频及原文档\nR16-3 rank表：\n{p1}{p2}')
+        msg.append(f'※不定期搬运自漪夢奈特\n※油管有介绍视频及原文档\nR16-4 rank表：\n{p1}{p2}')
         await bot.send(ctx, '\n'.join(msg), at_sender=True)
         await util.silence(ctx, 60)
     elif is_cn:
