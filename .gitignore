@@ -2,6 +2,7 @@
 config.py
 config.json
 local_coolq_config/
+hoshino/modules/priconne/arena/config.json
 
 # Database
 db.json
