@@ -1,36 +1,53 @@
 import os
-from os import path 
-import logging
+
+import aiocqhttp
 import nonebot
+from nonebot import Message, MessageSegment, message_preprocessor
+from nonebot.message import CanceledException
 
+from .log import new_logger
+from . import config
+
+_bot = None
+HoshinoBot = nonebot.NoneBot
 os.makedirs(os.path.expanduser('~/.hoshino'), exist_ok=True)
-from .log import logger
+logger = new_logger('hoshino', config.DEBUG)
 
-def init(config) -> nonebot.NoneBot:
-
+def init() -> HoshinoBot:
+    global _bot
     nonebot.init(config)
-    bot = nonebot.get_bot()
+    _bot = nonebot.get_bot()
+    _bot.finish = _finish
 
     from .log import error_handler, critical_handler
-    logger.setLevel(logging.DEBUG if bot.config.DEBUG else logging.INFO)
-    nonebot.logger.setLevel(logging.DEBUG if bot.config.DEBUG else logging.INFO)
     nonebot.logger.addHandler(error_handler)
     nonebot.logger.addHandler(critical_handler)
 
     for module_name in config.MODULES_ON:
         nonebot.load_plugins(
-            path.join(path.dirname(__file__), 'modules', module_name),
-            f'hoshino.modules.{module_name}'
-        )
+            os.path.join(os.path.dirname(__file__), 'modules', module_name),
+            f'hoshino.modules.{module_name}')
 
-    return bot
+    from . import msghandler
 
-
-def get_bot() -> nonebot.NoneBot:
-    return nonebot.get_bot()
+    return _bot
 
 
-from nonebot import NoneBot, CommandSession, MessageSegment
+async def _finish(event, message, **kwargs):
+    if message:
+        await _bot.send(event, message, **kwargs)
+    raise CanceledException('ServiceFunc of HoshinoBot finished.')
 
-from .service import Service, Privilege
-from .res import R
+
+def get_bot() -> HoshinoBot:
+    if _bot is None:
+        raise ValueError('HoshinoBot has not been initialized')
+    return _bot
+
+
+def get_self_ids():
+    return _bot._wsr_api_clients.keys()
+
+
+from . import R
+from .service import Service, sucmd

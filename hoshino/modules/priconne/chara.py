@@ -1,84 +1,168 @@
-import os
-import base64
-
-from io import BytesIO
+import importlib
+import pygtrie
+from fuzzywuzzy import fuzz, process
 from PIL import Image
+from io import BytesIO
+import requests
 
-import zhconv
+from hoshino import R, log, sucmd, util
+from hoshino.typing import CommandSession
 
-from .priconne_data import _PriconneData
-from hoshino.log import logger
-from hoshino.res import R, ResImg
+from . import _pcr_data
+
+logger = log.new_logger('chara')
+UNKNOWN = 1000
+UnavailableChara = {
+    1067,   # 穗希
+    1068,   # 晶
+    1069,   # 霸瞳
+    1072,   # 可萝爹
+    1073,   # 拉基拉基
+    1102,   # 泳装大眼
+}
 
 try:
     gadget_equip = R.img('priconne/gadget/equip.png').open()
     gadget_star = R.img('priconne/gadget/star.png').open()
     gadget_star_dis = R.img('priconne/gadget/star_disabled.png').open()
     gadget_star_pink = R.img('priconne/gadget/star_pink.png').open()
-    unknown_chara_icon = R.img('priconne/unit/icon_unit_100031.png').open()
+    unknown_chara_icon = R.img(f'priconne/unit/icon_unit_{UNKNOWN}31.png').open()
 except Exception as e:
     logger.exception(e)
 
 
-NAME2ID = {}
+class Roster:
 
-def gen_name2id():
-    NAME2ID.clear()
-    for k, v in _PriconneData.CHARA.items():
-        for s in v:
-            if s not in NAME2ID:
-                NAME2ID[normname(s)] = k
+    def __init__(self):
+        self._roster = pygtrie.CharTrie()
+        self.update()
+    
+    def update(self):
+        importlib.reload(_pcr_data)
+        self._roster.clear()
+        for idx, names in _pcr_data.CHARA_NAME.items():
+            for n in names:
+                n = util.normalize_str(n)
+                if n not in self._roster:
+                    self._roster[n] = idx
+                else:
+                    logger.warning(f'priconne.chara.Roster: 出现重名{n}于id{idx}与id{self._roster[n]}')
+        self._all_name_list = self._roster.keys()
+
+
+    def get_id(self, name):
+        name = util.normalize_str(name)
+        return self._roster[name] if name in self._roster else UNKNOWN
+
+
+    def guess_id(self, name):
+        """@return: id, name, score"""
+        name, score = process.extractOne(name, self._all_name_list)
+        return self._roster[name], name, score
+
+
+    def parse_team(self, namestr):
+        """@return: List[ids], unknown_namestr"""
+        namestr = util.normalize_str(namestr)
+        team = []
+        unknown = []
+        while namestr:
+            item = self._roster.longest_prefix(namestr)
+            if not item:
+                unknown.append(namestr[0])
+                namestr = namestr[1:].lstrip()
             else:
-                logger.warning(f'Chara.__gen_name2id: 出现重名{s}于id{k}与id{NAME2ID[s]}')
+                team.append(item.value)
+                namestr = namestr[len(item.key):].lstrip()
+        return team, ''.join(unknown)
 
 
-def normname(name:str) -> str:
-    name = name.lower().replace('（', '(').replace('）', ')')
-    name = zhconv.convert(name, 'zh-hans')
-    return name
+roster = Roster()
+
+def name2id(name):
+    return roster.get_id(name)
+
+def fromid(id_, star=0, equip=0):
+    return Chara(id_, star, equip)
+
+def fromname(name, star=0, equip=0):
+    id_ = name2id(name)
+    return Chara(id_, star, equip)
+
+def guess_id(name):
+    """@return: id, name, score"""
+    return roster.guess_id(name)
+
+def is_npc(id_):
+    if id_ in UnavailableChara:
+        return True
+    else:
+        return not ((1000 < id_ < 1200) or (1800 < id_ < 1900))
+
+def gen_team_pic(team, size=64, star_slot_verbose=True):
+    num = len(team)
+    des = Image.new('RGBA', (num*size, size), (255, 255, 255, 255))
+    for i, chara in enumerate(team):
+        src = chara.render_icon(size, star_slot_verbose)
+        des.paste(src, (i * size, 0), src)
+    return des
+
+
+def download_chara_icon(id_, star):
+    url = f'https://redive.estertion.win/icon/unit/{id_}{star}1.webp'
+    save_path = R.img(f'priconne/unit/icon_unit_{id_}{star}1.png').path
+    logger.info(f'Downloading chara icon from {url}')
+    try:
+        rsp = requests.get(url, stream=True, timeout=5)
+    except Exception as e:
+        logger.error(f'Failed to download {url}. {type(e)}')
+        logger.exception(e)
+    if 200 == rsp.status_code:
+        img = Image.open(BytesIO(rsp.content))
+        img.save(save_path)
+        logger.info(f'Saved to {save_path}')
+    else:
+        logger.error(f'Failed to download {url}. HTTP {rsp.status_code}')
+
 
 class Chara:
-    
-    UNKNOWN = 1000
-    
-    def __init__(self, id_, star=3, equip=0):
+
+    def __init__(self, id_, star=0, equip=0):
         self.id = id_
         self.star = star
         self.equip = equip
 
-
-    @staticmethod
-    def fromid(id_, star=3, equip=0):
-        '''Create Chara from her id. The same as Chara()'''
-        return Chara(id_, star, equip)
-
-
-    @staticmethod
-    def fromname(name, star=3, equip=0):
-        '''Create Chara from her name.'''
-        id_ = Chara.name2id(name)
-        return Chara(id_, star, equip)
-
-
     @property
     def name(self):
-        return _PriconneData.CHARA[self.id][0] if self.id in _PriconneData.CHARA else _PriconneData.CHARA[Chara.UNKNOWN][0]
-
+        return _pcr_data.CHARA_NAME[self.id][0] if self.id in _pcr_data.CHARA_NAME else _pcr_data.CHARA_NAME[UNKNOWN][0]
 
     @property
-    def icon(self) -> ResImg:
+    def is_npc(self) -> bool:
+        return is_npc(self.id)
+
+    @property
+    def icon(self):
         star = '3' if 1 <= self.star <= 5 else '6'
         res = R.img(f'priconne/unit/icon_unit_{self.id}{star}1.png')
         if not res.exist:
             res = R.img(f'priconne/unit/icon_unit_{self.id}31.png')
         if not res.exist:
             res = R.img(f'priconne/unit/icon_unit_{self.id}11.png')
+        if not res.exist:   # FIXME: 不方便改成异步请求
+            download_chara_icon(self.id, 6)
+            download_chara_icon(self.id, 3)
+            download_chara_icon(self.id, 1)
+            res = R.img(f'priconne/unit/icon_unit_{self.id}{star}1.png')
         if not res.exist:
-            res = R.img(f'priconne/unit/icon_unit_{Chara.UNKNOWN}31.png')
+            res = R.img(f'priconne/unit/icon_unit_{self.id}31.png')
+        if not res.exist:
+            res = R.img(f'priconne/unit/icon_unit_{self.id}11.png')
+        if not res.exist:
+            res = R.img(f'priconne/unit/icon_unit_{UNKNOWN}31.png')
         return res
 
 
-    def gen_icon_img(self, size, star_slot_verbose=True) -> Image:
+    def render_icon(self, size, star_slot_verbose=True) -> Image:
         try:
             pic = self.icon.open().convert('RGBA').resize((size, size), Image.LANCZOS)
         except FileNotFoundError:
@@ -111,19 +195,12 @@ class Chara:
         return pic
 
 
-    @staticmethod
-    def gen_team_pic(team, size=64, star_slot_verbose=True):
-        num = len(team)
-        des = Image.new('RGBA', (num*size, size), (255, 255, 255, 255))
-        for i, chara in enumerate(team):
-            src = chara.gen_icon_img(size, star_slot_verbose)
-            des.paste(src, (i * size, 0), src)
-        return des
 
-
-    @staticmethod
-    def name2id(name):
-        name = normname(name)
-        if not NAME2ID:
-            gen_name2id()
-        return NAME2ID[name] if name in NAME2ID else Chara.UNKNOWN
+@sucmd('reload-pcr-chara', force_private=False, aliases=('重载角色花名册', ))
+async def reload_pcr_chara(session: CommandSession):
+    try:
+        roster.update()
+        await session.send('ok')
+    except Exception as e:
+        logger.exception(e)
+        await session.send(f'Error: {type(e)}')

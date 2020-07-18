@@ -1,23 +1,26 @@
+import base64
 import os
 import time
-import pytz
-import base64
-import zhconv
 import unicodedata
-from io import BytesIO
-from PIL import Image
 from collections import defaultdict
-from matplotlib import pyplot as plt
 from datetime import datetime, timedelta
+from io import BytesIO
+
+import pytz
+import zhconv
+from aiocqhttp.exceptions import ActionFailed
+from matplotlib import pyplot as plt
+from PIL import Image
+
+import hoshino
+from hoshino.typing import CQEvent
+
 try:
     import ujson as json
 except:
     import json
 
-from nonebot import get_bot
-from aiocqhttp.exceptions import ActionFailed
 
-from .log import logger
 
 
 def load_config(inbuilt_file_var):
@@ -31,42 +34,32 @@ def load_config(inbuilt_file_var):
             config = json.load(f)
             return config
     except Exception as e:
-        logger.exception(e)
+        hoshino.logger.exception(e)
         return {}
 
 
-async def delete_msg(ctx):
+async def delete_msg(ev: CQEvent):
     try:
-        if get_bot().config.IS_CQPRO:
-            msg_id = ctx['message_id']
-            await get_bot().delete_msg(self_id=ctx['self_id'], message_id=msg_id)
+        if hoshino.config.USE_CQPRO:
+            await hoshino.get_bot().delete_msg(self_id=ev.self_id, message_id=ev.message_id)
     except ActionFailed as e:
-        logger.error(f'撤回失败 retcode={e.retcode}')
+        hoshino.logger.error(f'撤回失败 retcode={e.retcode}')
     except Exception as e:
-        logger.exception(e)
+        hoshino.logger.exception(e)
 
 
-async def silence(ctx, ban_time, ignore_super_user=False):
-    logger.info("Silence disabled")
+async def silence(ev: CQEvent, ban_time, skip_su=True):
+    hoshino.logger.info(f'Silence disabled')
     return
     # try:
-    #     self_id = ctx['self_id']
-    #     group_id = ctx['group_id']
-    #     user_id = ctx['user_id']
-    #     bot = get_bot()
-    #     if ignore_super_user or user_id not in bot.config.SUPERUSERS:
-    #         await bot.set_group_ban(self_id=self_id, group_id=group_id, user_id=user_id, duration=ban_time)
+    #     if skip_su and ev.user_id in hoshino.config.SUPERUSERS:
+    #         return
+    #     await hoshino.get_bot().set_group_ban(self_id=ev.self_id, group_id=ev.group_id, user_id=ev.user_id, duration=ban_time)
     # except ActionFailed as e:
-    #     logger.error(f'禁言失败 retcode={e.retcode}')
+    #     hoshino.logger.error(f'禁言失败 retcode={e.retcode}')
     # except Exception as e:
-    #     logger.exception(e)
+    #     hoshino.logger.exception(e)
 
-
-def pic2b64_nocompress(pic:Image) -> str:
-    buf = BytesIO()
-    pic.save(buf, format='PNG')
-    base64_str = base64.b64encode(buf.getvalue()).decode()   #, encoding='utf8')
-    return 'base64://' + base64_str
 
 def pic2b64(pic:Image) -> str:
     # 默认发送图片时，采用 Image.ANTIALIAS 平滑方法，起一定压缩效果
@@ -121,14 +114,14 @@ def date_name(x:int) -> str:
 
 NUM_NAME = (
     '〇〇', '〇一', '〇二', '〇三', '〇四', '〇五', '〇六', '〇七', '〇八', '〇九',
-    '一〇', '一一', '一二', '一三', '一四', '一五', '一六', '一七', '一八', '一九', 
-    '二〇', '二一', '二二', '二三', '二四', '二五', '二六', '二七', '二八', '二九', 
-    '三〇', '三一', '三二', '三三', '三四', '三五', '三六', '三七', '三八', '三九', 
-    '四〇', '四一', '四二', '四三', '四四', '四五', '四六', '四七', '四八', '四九', 
+    '一〇', '一一', '一二', '一三', '一四', '一五', '一六', '一七', '一八', '一九',
+    '二〇', '二一', '二二', '二三', '二四', '二五', '二六', '二七', '二八', '二九',
+    '三〇', '三一', '三二', '三三', '三四', '三五', '三六', '三七', '三八', '三九',
+    '四〇', '四一', '四二', '四三', '四四', '四五', '四六', '四七', '四八', '四九',
     '五〇', '五一', '五二', '五三', '五四', '五五', '五六', '五七', '五八', '五九',
-    '六〇', '六一', '六二', '六三', '六四', '六五', '六六', '六七', '六八', '六九', 
-    '七〇', '七一', '七二', '七三', '七四', '七五', '七六', '七七', '七八', '七九', 
-    '八〇', '八一', '八二', '八三', '八四', '八五', '八六', '八七', '八八', '八九', 
+    '六〇', '六一', '六二', '六三', '六四', '六五', '六六', '六七', '六八', '六九',
+    '七〇', '七一', '七二', '七三', '七四', '七五', '七六', '七七', '七八', '七九',
+    '八〇', '八一', '八二', '八三', '八四', '八五', '八六', '八七', '八八', '八九',
     '九〇', '九一', '九二', '九三', '九四', '九五', '九六', '九七', '九八', '九九',
 )
 def time_name(hh:int, mm:int) -> str:
@@ -145,6 +138,9 @@ class FreqLimiter:
 
     def start_cd(self, key, cd_time=0):
         self.next_time[key] = time.time() + (cd_time if cd_time > 0 else self.default_cd)
+
+    def left_time(self, key) -> float:
+        return self.next_time[key] - time.time()
 
 
 class DailyNumberLimiter:

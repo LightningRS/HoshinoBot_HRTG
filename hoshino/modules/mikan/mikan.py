@@ -1,30 +1,28 @@
 import random
-import requests
-import asyncio
-from lxml import etree
 from datetime import datetime
 
-from hoshino import util
-from hoshino.service import Service
+from lxml import etree
 
-sv = Service('bangumi', enable_on_default=False)
+import hoshino
+from hoshino import Service, aiorequests
 
-class Mikan(object):
+sv = Service('bangumi', enable_on_default=False, help_='蜜柑番剧更新推送')
+
+class Mikan:
     link_cache = set()
     rss_cache = []
 
     @staticmethod
     def get_token():
-        config = util.load_config(__file__)
-        return config["MIKAN_TOKEN"]
+        return hoshino.config.mikan.MIKAN_TOKEN
 
 
     @staticmethod
-    def get_rss():
+    async def get_rss():
         res = []
         try:
-            resp = requests.get('https://mikanani.me/RSS/MyBangumi', params={'token': Mikan.get_token()}, timeout=1)
-            rss = etree.XML(resp.content)
+            resp = await aiorequests.get('https://mikanani.me/RSS/MyBangumi', params={'token': Mikan.get_token()}, timeout=10)
+            rss = etree.XML(await resp.content)
         except Exception as e:
             sv.logger.error(f'[get_rss] Error: {e}')
             return []
@@ -40,8 +38,8 @@ class Mikan(object):
 
 
     @staticmethod
-    def update_cache():
-        rss = Mikan.get_rss()
+    async def update_cache():
+        rss = await Mikan.get_rss()
         new_bangumi = []
         flag = False
         for item in rss:
@@ -84,10 +82,10 @@ DEVICES = [
 @sv.scheduled_job('cron', minute='*/3', second='15')
 async def mikan_poller():
     if not Mikan.rss_cache:
-        Mikan.update_cache()
+        await Mikan.update_cache()
         sv.logger.info(f'订阅缓存为空，已加载至最新')
         return
-    new_bangumi = Mikan.update_cache()
+    new_bangumi = await Mikan.update_cache()
     if not new_bangumi:
         sv.logger.info(f'未检索到番剧更新！')
     else:
@@ -99,11 +97,11 @@ async def mikan_poller():
 
 DISABLE_NOTICE = '本群蜜柑番剧功能已禁用\n使用【启用 bangumi】以启用（需群管理）\n开启本功能后将自动推送字幕组更新'
 
-@sv.on_command('来点新番', aliases=('來點新番', ), deny_tip=DISABLE_NOTICE, only_to_me=False)
-async def send_bangumi(session):
+@sv.on_fullmatch(('来点新番', '來點新番'))
+async def send_bangumi(bot, ev):
     if not Mikan.rss_cache:
-        Mikan.update_cache()
+        await Mikan.update_cache()
 
     msg = [ f'{i[1]} 【{i[2].strftime(r"%Y-%m-%d %H:%M")}】\n▲链接 {i[0]}' for i in Mikan.rss_cache[:min(5, len(Mikan.rss_cache))] ]
     msg = '\n'.join(msg)
-    await session.send(f'最近更新的番剧：\n{msg}')
+    await bot.send(ev, f'最近更新的番剧：\n{msg}')

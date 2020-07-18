@@ -1,22 +1,23 @@
 from functools import cmp_to_key
 
-from nonebot import on_command, CommandSession
+from nonebot import CommandSession, CQHttpError, on_command
 from nonebot import permission as perm
-from nonebot import CQHttpError
 from nonebot.argparse import ArgumentParser
 
-from hoshino.service import Service, Privilege as Priv
+from hoshino import Service, priv
 
-PRIV_TIP = f'群主={Priv.OWNER} 群管={Priv.ADMIN} 群员={Priv.NORMAL} bot维护组={Priv.SUPERUSER}'
+PRIV_TIP = f'群主={priv.OWNER} 群管={priv.ADMIN} 群员={priv.NORMAL} bot维护组={priv.SUPERUSER}'
 
 @on_command('lssv', aliases=('服务列表', '功能列表'), permission=perm.GROUP_ADMIN, only_to_me=False, shell_like=True)
 async def lssv(session:CommandSession):
     parser = ArgumentParser(session=session)
     parser.add_argument('-a', '--all', action='store_true')
+    parser.add_argument('-H', '--hidden', action='store_true')
     parser.add_argument('-g', '--group', type=int, default=0)
     args = parser.parse_args(session.argv)
     
     verbose_all = args.all
+    only_hidden = args.hidden
     if session.ctx['user_id'] in session.bot.config.SUPERUSERS:
         gid = args.group or session.ctx.get('group_id')
         if not gid:
@@ -30,7 +31,7 @@ async def lssv(session:CommandSession):
     key = cmp_to_key(lambda x, y: (y[1] - x[1]) or (-1 if x[0].name < y[0].name else 1 if x[0].name > y[0].name else 0))
     svs = sorted(svs, key=key)
     for sv, on in svs:
-        if sv.visible or verbose_all:
+        if verbose_all or (sv.visible ^ only_hidden):
             x = '○' if on else '×'
             msg.append(f"|{x}| {sv.name}")
     await session.send('\n'.join(msg))
@@ -56,7 +57,7 @@ async def switch_service(session:CommandSession, turn_on:bool):
         for name in names:
             if name in svs:
                 sv = svs[name]
-                u_priv = sv.get_user_priv(session.ctx)
+                u_priv = priv.get_user_priv(session.ctx)
                 if u_priv >= sv.manage_priv:
                     sv.set_enable(group_id) if turn_on else sv.set_disable(group_id)
                     succ.append(name)

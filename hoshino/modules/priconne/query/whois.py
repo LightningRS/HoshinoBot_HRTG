@@ -1,23 +1,37 @@
+from hoshino.typing import CQEvent, MessageSegment
 from hoshino.util import FreqLimiter
-from ..chara import Chara
+
+from .. import chara
 from . import sv
 
-_lmt = FreqLimiter(5)
+lmt = FreqLimiter(5)
 
-@sv.on_rex(r'^[谁誰]是\s*(.{1,20})$', normalize=False)
-async def whois(bot, ctx, match):
-    uid = ctx['user_id']
-    if not _lmt.check(uid):
-        await bot.send(ctx, '您查询得太快了，请稍等一会儿', at_sender=True)
+@sv.on_suffix(('是谁', '是誰'))
+@sv.on_prefix(('谁是', '誰是'))
+async def whois(bot, ev: CQEvent):
+    uid = ev.user_id
+    if not lmt.check(uid):
+        await bot.send(ev, f'兰德索尔花名册冷却中(剩余 {int(lmt.left_time(uid)) + 1}秒)', at_sender=True)
         return
-    _lmt.start_cd(uid)
+    lmt.start_cd(uid)
 
-    name = match.group(1)
-    chara = Chara.fromname(name, star=0)
-    if chara.id == Chara.UNKNOWN:
-        _lmt.start_cd(uid, 600)
-        await bot.send(ctx, f'兰德索尔似乎没有叫"{name}"的人\n角色别称补全计划：github.com/Ice-Cirno/HoshinoBot/issues/5\n您的下次查询将于10分钟后可用', at_sender=True)
+    name = ev.message.extract_plain_text().strip()
+    if not name:
+        await bot.send(ev, '请发送"谁是"+别称，如"谁是霸瞳"')
         return
+    id_ = chara.name2id(name)
+    confi = 100
+    if id_ == chara.UNKNOWN:
+        id_, guess_name, confi = chara.guess_id(name)
+    c = chara.fromid(id_)
+    
+    msg = ''
+    if confi < 100:
+        lmt.start_cd(uid, 120)
+        msg = f'兰德索尔似乎没有叫"{name}"的人...\n角色别称补全计划: github.com/Ice-Cirno/HoshinoBot/issues/5'
+        await bot.send(ev, msg)
+        msg = f'\n您有{confi}%的可能在找{guess_name} '
 
-    msg = f'{chara.icon.cqcode} {chara.name}'
-    await bot.send(ctx, msg, at_sender=True)
+    if confi > 60:
+        msg += f'{c.icon.cqcode} {c.name}'
+        await bot.send(ev, msg, at_sender=True)

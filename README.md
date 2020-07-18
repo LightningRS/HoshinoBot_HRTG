@@ -83,7 +83,7 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 
 2. 安装 酷Q 及 CQHTTP 插件
 
-    - 酷Q Air：https://cqp.cc/t/23253
+    - 酷Q Air：https://cqp.cc/t/23253 （如无法打开，使用此下载直链：https://dlsec.cqp.me/cqa-full）
     - CQHTTP 插件：https://github.com/richardchien/coolq-http-api/releases
 
     > 初次部署建议先在本地尝试，酷Q Air版即可，待部署成功后再尝试服务器搭建与酷Q Pro版
@@ -105,7 +105,7 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 
 4. 打开一个合适的文件夹，点击资源管理器左上角的 `文件 -> 打开Windows Powershell`
 
-5. 输入以下命令安装依赖
+5. 输入以下命令克隆本仓库并安装依赖
 
     ```powershell
     git clone https://github.com/Ice-Cirno/HoshinoBot.git
@@ -116,7 +116,7 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
     >
     >若安装python依赖库时下载速度缓慢，可以尝试使用`py -3.8 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple -r requirements.txt`
 
-6. 回到资源管理器，复制`config.example.py`至同目录下，重命名为`config.py`，右键使用Notepad++打开，按照其中的注释说明进行编辑。
+6. 回到资源管理器，进入`hoshino`文件夹，将`config_example`文件夹重命名为`config`，然后右键使用Notepad++打开其中的`__bot__.py`，按照其中的注释说明进行编辑。
 
     > 如果您不清楚某项设置的作用，请保持默认
     
@@ -182,8 +182,8 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 
 5. 编辑配置文件
     ```bash
-    cp config.example.py config.py
-    nano config.py
+    mv hoshino/config_example hoshino/config
+    nano hoshino/config/__bot__.py
     ```
     > 配置文件内有相应注释，请根据您的实际配置填写，HoshinoBot仅支持反向ws通信
     >
@@ -211,7 +211,7 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 
 > 发送图片的条件：  
 > 1. 酷Q Pro版  
-> 2. 将`config.py`中的`IS_CQPRO`设为`True`  
+> 2. 将`hoshino/config/__bot__.py`中的`USE_CQPRO`设为`True`  
 > 3. 静态图片资源
 
 您可能希望看到更为精致的图片版结果，若希望机器人能够发送图片，首先需要您购买酷Q Pro版，其次需要准备静态图片资源，其中包括：
@@ -232,17 +232,18 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 
 竞技场查询功能的数据来自 [公主连结Re: Dive Fan Club - 硬核的竞技场数据分析站](https://pcrdfans.com/) ，查询需要授权key。您可以向pcrdfans的作者索要。（注：由于最近机器人搭建者较多，pcrdfans的作者最近常被打扰，我们**不建议**您因本项目而去联系他，推荐您前往网站[pcrdfans.com](https://pcrdfans.com)进行查询）
 
-若您已有授权key，创建文件`hoshino/modules/priconne/arena/config.json`编写以下内容：
+若您已有授权key，在文件`hoshino/config/priconne.py`中填写您的key：
 
-```json
-{"AUTH_KEY": "your_auth_key"}
+```python
+class arena:
+    AUTH_KEY = "your_key"
 ```
 
 
 
 #### 蜜柑番剧 RSS Token
 
-> 请先在`config.py`的`MODULES_ON`中取消`mikan`的注释  
+> 请先在`hoshino/config/__bot__.py`的`MODULES_ON`中取消`mikan`的注释  
 > 本功能默认关闭，在群内发送 "启用 bangumi" 即可开启
 
 番剧订阅数据来自[蜜柑计划 - Mikan Project](https://mikanani.me/)，您可以注册一个账号，添加订阅的番剧，之后点击Mikan首页的RSS订阅，复制类似于下面的url地址：
@@ -251,10 +252,10 @@ HoshinoBot 的功能繁多，各群可根据自己的需要进行开关控制，
 https://mikanani.me/RSS/MyBangumi?token=abcdfegABCFEFG%2b123%3d%3d
 ```
 
-保留其中的`token`参数，创建文件`hoshino\modules\mikan\config.json`编写以下内容：
+保留其中的`token`参数，在文件`hoshino/config/mikan.py`中填写您的token：
 
-```json
-{"MIKAN_TOKEN" : "abcdfegABCFEFG+123=="}
+```python
+MIKAN_TOKEN = "abcdfegABCFEFG+123=="
 ```
 
 注意：`token`中可能含有url转义，您需要将`%2b`替换为`+`，将`%2f`替换为`/`，将`%3d`替换为`=`。
@@ -263,33 +264,14 @@ https://mikanani.me/RSS/MyBangumi?token=abcdfegABCFEFG%2b123%3d%3d
 
 #### 时报文本
 
-> 请先在`config.py`的`MODULES_ON`中取消`hourcall`的注释  
+> 请先在`hoshino/config/__bot__.py`的`MODULES_ON`中取消`mikan`的注释  
 > 本功能默认关闭，在群内发送 "启用 hourcall" 即可开启
 
 报时功能使用/魔改了艦これ中各个艦娘的报时语音，您可以在[舰娘百科](https://zh.kcwiki.org/wiki/舰娘百科)或[艦これ 攻略 Wiki](https://wikiwiki.jp/kancolle/)找到相应的文本/翻译，当然您也可以自行编写台词。在此，我们向原台词作者[田中](https://bbs.nga.cn/read.php?tid=9143913)[谦介](http://nga.178.com/read.php?tid=14045507)先生和他杰出的游戏作品表达诚挚的感谢！
 
-若您已获取时报文本，创建文件`hoshino/modules/hourcall/config.json`编写以下内容：
+若您已获取时报文本，在文件`hoshino/config/hourcall.py`中填写您的文本。
 
-```json
-{
-    "HOUR_CALLS": [
-        "HOUR_CALL_1",
-        "HOUR_CALL_2"
-    ],
-    "HOUR_CALL_1": [
-        "午夜零点", "〇一〇〇", "〇二〇〇", "〇三〇〇", "〇四〇〇", "〇五〇〇",
-        "〇六〇〇", "〇七〇〇", "〇八〇〇", "〇九〇〇", "一〇〇〇", "一一〇〇",
-        "一二〇〇", "一三〇〇", "一四〇〇", "一五〇〇", "一六〇〇", "一七〇〇",
-        "一八〇〇", "一九〇〇", "二〇〇〇", "二一〇〇", "二二〇〇", "二三〇〇"
-	],
-    "HOUR_CALL_2": [
-        "0","1","2","3","4","5","6","7","8","9","10","11","12",
-        "13","14","15","16","17","18","19","20","21","22","23"
-    ]
-}    
-```
-
-您可以编入多组报时文本，机器人会按`HOUR_CALLS`中定义的顺序循环日替。
+您可以编入多组报时文本，机器人会按`HOUR_CALLS_ON`中定义的顺序循环日替。
 
 
 
@@ -297,15 +279,13 @@ https://mikanani.me/RSS/MyBangumi?token=abcdfegABCFEFG%2b123%3d%3d
 
 推特转发功能需要推特开发者账号，具体申请方法请自行[Google](http://google.com)。注：现在推特官方大概率拒绝来自中国大陆的新申请，自备海外手机号及大学邮箱可能会帮到您。
 
-若您已有推特开发者账号，创建文件`hoshino/modules/twitter/config.json`编写以下内容：
+若您已有推特开发者账号，在文件`hoshino/config/twitter.py`中填写您的key：
 
-```json
-{
-    "consumer_key": "your_consumer_key",
-    "consumer_secret": "your_consumer_secret",
-    "access_token_key": "your_access_token_key",
-    "access_token_secret": "your_access_token_secret"
-}
+```python
+consumer_key = "your_consumer_key",
+consumer_secret = "your_consumer_secret",
+access_token_key = "your_access_token_key",
+access_token_secret = "your_access_token_secret"
 ```
 
 
