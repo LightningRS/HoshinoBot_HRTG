@@ -254,7 +254,7 @@ async def process_challenge(bot:NoneBot, ctx:Context_T, ch:ParseResult):
     msg.append(_gen_progress_text(clan['name'], aft_round, aft_boss, aft_hp, max_hp, score_rate))
 
     if rflag:
-        msg.append(f"【全会余刀】剩{total_n}刀 补时{total_e}刀")
+        msg.append(f"【全会余刀】剩{rtotal_n}刀 补时{rtotal_e}刀")
     else:
         msg.append(f"【全会余刀】报刀有误，不予显示")
 
