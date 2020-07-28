@@ -229,8 +229,35 @@ async def process_challenge(bot:NoneBot, ctx:Context_T, ch:ParseResult):
     eid = bm.add_challenge(mem['uid'], mem['alt'], round_, boss, damage, flag, now)
     aft_round, aft_boss, aft_hp = bm.get_challenge_progress(1, now)
     max_hp, score_rate = bm.get_boss_info(aft_round, aft_boss, clan['server'])
-    msg.append(f"记录编号E{eid}：\n{mem['name']}给予{round_}周目{bm.int2kanji(boss)}王{damage:,d}点伤害\n")
+    msg.append(f"记录编号E{eid}：\n{mem['name']}给予{round_}周目{bm.int2kanji(boss)}王{damage:,d}点伤害")
+
+    # 统计刀数
+    rlist = bm.list_challenge_remain(1, datetime.now() - timedelta(days=0))
+    rtotal_n = 0
+    rtotal_e = 0
+    rflag = True
+    for ruid, _, rname, r_n, r_e in rlist:
+        rtotal_n += r_n
+        rtotal_e += r_e
+        if ruid == mem['uid']:
+            if r_n or r_e:
+                msg.append(f"【成员余刀】您本日剩{r_n}刀 补时{r_e}刀")
+                if r_n < 0 or r_e < 0:
+                    msg.append(f"⚠️您本日报刀有误，请注意核对")
+            else:
+                msg.append(f"您本日已下班，辛苦了！")
+
+        if r_n < 0 or r_e < 0:
+            rflag = False
+    msg.append(f"")
+
     msg.append(_gen_progress_text(clan['name'], aft_round, aft_boss, aft_hp, max_hp, score_rate))
+
+    if rflag:
+        msg.append(f"【全会余刀】剩{total_n}刀 补时{total_e}刀")
+    else:
+        msg.append(f"【全会余刀】报刀有误，不予显示")
+
     await bot.send(ctx, '\n'.join(msg), at_sender=True)
 
     # 判断是否更换boss，呼叫预约
@@ -796,15 +823,30 @@ async def _do_show_remain(bot:NoneBot, ctx:Context_T, args:ParseResult, at_user:
     rlist = bm.list_challenge_remain(1, datetime.now() - timedelta(days=args.get('D', 0)))
     rlist.sort(key=lambda x: x[3] + x[4], reverse=True)
     msg = [ f"\n{clan['name']}今日余刀：" ]
+    msg2 = []
+
+    total_n = 0
+    total_e = 0
+    flag = True
     for uid, _, name, r_n, r_e in rlist:
+        total_n += r_n
+        total_e += r_e
         if r_n or r_e:
-            msg.append(f"剩{r_n}刀 补时{r_e}刀 | {ms.at(uid) if at_user else name}")
-    if len(msg) == 1:
+            msg2.append(f"剩{r_n}刀 补时{r_e}刀 | {ms.at(uid) if at_user else name}")
+        if r_n < 0 or r_e < 0:
+            flag = False
+    if flag:
+        msg.append(f"【总计】剩{total_n}刀 补时{total_e}刀")
+    else:
+        msg.append(f"【总计】报刀有误，不予显示")
+
+    if len(msg2) == 0:
         await bot.send(ctx, f"今日{clan['name']}所有成员均已下班！各位辛苦了！", at_sender=True)
     else:
-        msg.append('若有负数说明报刀有误 请注意核对\n使用“!出刀记录 @qq”可查看详细记录')
+        msg2.append('若有负数说明报刀有误 请注意核对\n使用“!出刀记录 @qq”可查看详细记录')
         if at_user:
-            msg.append("=========\n在？阿sir喊你出刀啦！")
+            msg2.append("=========\n在？阿sir喊你出刀啦！")
+        msg.extend(msg2)
         await bot.send(ctx, '\n'.join(msg), at_sender=True)
 
 
