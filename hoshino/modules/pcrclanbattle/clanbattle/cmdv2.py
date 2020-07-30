@@ -232,7 +232,7 @@ async def process_challenge(bot:NoneBot, ctx:Context_T, ch:ParseResult):
     msg.append(f"记录编号E{eid}：\n{mem['name']}给予{round_}周目{bm.int2kanji(boss)}王{damage:,d}点伤害")
 
     # 统计刀数
-    rlist = bm.list_challenge_remain(1, datetime.now() - timedelta(days=0))
+    rlist = bm.list_challenge_remain(1, datetime.now() - timedelta(days=ch.get('dayoffset', 0)))
     rtotal_n = 0
     rtotal_e = 0
     rflag = True
@@ -241,11 +241,11 @@ async def process_challenge(bot:NoneBot, ctx:Context_T, ch:ParseResult):
         rtotal_e += r_e
         if ruid == mem['uid']:
             if r_n or r_e:
-                msg.append(f"【成员余刀】您本日剩{r_n}刀 补时{r_e}刀")
+                msg.append(f"【成员余刀】您当日剩{r_n}刀 补时{r_e}刀")
                 if r_n < 0 or r_e < 0:
-                    msg.append(f"⚠️您本日报刀有误，请注意核对")
+                    msg.append(f"⚠️您当日报刀有误，请注意核对")
             else:
-                msg.append(f"您本日已下班，辛苦了！")
+                msg.append(f"【成员余刀】您当日已下班，辛苦了！")
 
         if r_n < 0 or r_e < 0:
             rflag = False
@@ -254,9 +254,12 @@ async def process_challenge(bot:NoneBot, ctx:Context_T, ch:ParseResult):
     msg.append(_gen_progress_text(clan['name'], aft_round, aft_boss, aft_hp, max_hp, score_rate))
 
     if rflag:
-        msg.append(f"【全会余刀】剩{rtotal_n}刀 补时{rtotal_e}刀")
+        if rtotal_n > 0 or rtotal_e > 0:
+            msg.append(f"【全会余刀】当日剩{rtotal_n}刀 补时{rtotal_e}刀")
+        else:
+            msg.append(f"【全会余刀】当日全体成员已下班")
     else:
-        msg.append(f"【全会余刀】报刀有误，不予显示")
+        msg.append(f"【全会余刀】⚠️报刀有误，不予显示")
 
     await bot.send(ctx, '\n'.join(msg), at_sender=True)
 
